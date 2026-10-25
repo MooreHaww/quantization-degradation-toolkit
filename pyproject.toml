@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantization-toolkit"
+version = "0.1.0"
+description = "From-scratch weight fake-quantization and degradation experiments (reconstruction error, perplexity, in-context learning) on Pythia."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # Install torch first from the CUDA index (see README); this line only sets the floor.
+    "torch>=2.9",
+    "transformers>=4.56",
+    "datasets>=3.0",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "typer>=0.12",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+qtk = "qtk.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = "-q"
