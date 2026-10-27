@@ -21,11 +21,13 @@ def run(
     out_dir: Path,
     max_layers: int | None = None,
     revision: str | None = qmodel.DEFAULT_REVISION,
+    quantize_head: bool = False,
 ) -> pd.DataFrame:
+    """Per-layer error for the layers that get quantized (the LM head only with ``quantize_head``)."""
     rows = []
     for name in models:
         model = qmodel.load_model(name, torch.device("cpu"), revision=revision)
-        layers = qmodel.linear_modules(model)
+        layers = qmodel.quantized_modules(model, quantize_head)
         if max_layers is not None:
             layers = layers[:max_layers]
         configs = [QuantConfig.parse(b, s, g) for s in schemes for g in granularities for b in bits]
@@ -36,6 +38,7 @@ def run(
                 rows.append(
                     {
                         "model": qmodel.short_name(name),
+                        "head": qmodel.head_label(quantize_head),
                         "layer": layer_name,
                         "shape": "x".join(map(str, w.shape)),
                         "numel": w.numel(),
@@ -56,7 +59,7 @@ def run(
 def summarize(df: pd.DataFrame) -> pd.DataFrame:
     """Per (model, scheme, granularity, bits): mean per-layer rel_err, and the global
     relative error sqrt(sum ||W - W_hat||^2 / sum ||W||^2) pooled over all layers."""
-    keys = ["model", "scheme", "granularity", "bits"]
+    keys = ["model", "head", "scheme", "granularity", "bits"]
     g = df.groupby(keys, sort=False)
     out = g.agg(
         n_layers=("layer", "count"),

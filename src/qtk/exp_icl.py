@@ -41,7 +41,8 @@ def score_labels(
     Returns ``(scores [n_prompts, n_labels], n_truncated)``. Prompts that would
     exceed ``max_len`` are truncated from the left. Labels whose tokens share
     the same prefix share one forward pass (so single-token labels cost one
-    pass per prompt). Only the needed positions go through the LM head.
+    pass per prompt). Only the needed positions go through the LM head, whose
+    matmul and log-softmax run in float32 even for an FP16 model.
     """
     # item = (input ids, index of the logit predicting the first label token, [(prompt, label)])
     items: list[tuple[list[int], int, list[tuple[int, int]]]] = []
@@ -60,7 +61,6 @@ def score_labels(
 
     device = next(model.parameters()).device
     base = model.base_model
-    head = model.get_output_embeddings()
     scores = np.zeros((len(prompt_ids), len(label_ids)), dtype=np.float64)
     order = sorted(range(len(items)), key=lambda n: -len(items[n][0]))  # stable, deterministic
     for start in tqdm(range(0, len(order), batch_size), ascii=True, leave=False, desc="score"):
@@ -74,7 +74,7 @@ def score_labels(
         hidden = base(input_ids=ids.to(device), attention_mask=mask.to(device))[0]
         for b, (_, first, pairs) in enumerate(batch):
             n_pos = max(len(label_ids[j]) for _, j in pairs)
-            logp = torch.log_softmax(head(hidden[b, first : first + n_pos]).float(), dim=-1)
+            logp = torch.log_softmax(qmodel.fp32_logits(model, hidden[b, first : first + n_pos]), dim=-1)
             for i, j in pairs:
                 lab = label_ids[j]
                 scores[i, j] = float(logp[torch.arange(len(lab)), torch.tensor(lab)].sum())
@@ -82,7 +82,7 @@ def score_labels(
 
 
 def summarize(df: pd.DataFrame) -> pd.DataFrame:
-    keys = ["model", "precision", "bits", "k"]
+    keys = ["model", "precision", "head", "bits", "k"]
     out = (
         df.groupby(keys, sort=False)
         .agg(
@@ -114,6 +114,7 @@ def run(
     subset_seed: int = 0,
     save_preds: bool = False,
     revision: str | None = qmodel.DEFAULT_REVISION,
+    quantize_head: bool = False,
 ) -> pd.DataFrame:
     train, val = data.load_sst2()
     eval_set = data.select_eval_subset(val, n_eval, subset_seed)
@@ -140,6 +141,7 @@ def run(
 
         def evaluate(model: nn.Module, precision: str, n_bits: int, cfg: QuantConfig | None) -> None:
             max_len = model.config.max_position_embeddings
+            head = qmodel.head_label(quantize_head and cfg is not None)
             for k, s in tqdm(conditions, desc=f"{short} {precision}", ascii=True):
                 scores, n_trunc = score_labels(model, prompts[(k, s)], label_ids, batch_size, max_len)
                 preds = scores.argmax(axis=1)
@@ -150,6 +152,7 @@ def run(
                         {
                             "model": short,
                             "precision": precision,
+                            "head": head,
                             "bits": n_bits,
                             "scheme": cfg.scheme if cfg else "",
                             "granularity": cfg.granularity_label if cfg else "",
@@ -165,7 +168,7 @@ def run(
                     for i in idx:
                         pred_rows.append(
                             {
-                                "model": short, "precision": precision, "k": k, "seed": s,
+                                "model": short, "precision": precision, "head": head, "k": k, "seed": s,
                                 "example": int(i), "label": int(labels[i]),
                                 "logp_negative": scores[i, 0], "logp_positive": scores[i, 1],
                             }
@@ -178,7 +181,7 @@ def run(
             if cfg is None:
                 qmodel.restore_weights(model)
             else:
-                qmodel.apply_fake_quant(model, cfg)
+                qmodel.apply_fake_quant(model, cfg, quantize_head=quantize_head)
             evaluate(model, precision, cfg.bits if cfg else 32, cfg)
         del model
 

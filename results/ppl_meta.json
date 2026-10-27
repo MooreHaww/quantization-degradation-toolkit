@@ -1,0 +1,26 @@
+{
+  "experiment": "ppl",
+  "args": {
+    "models": "pythia-70m,pythia-160m,pythia-410m",
+    "bits": "8,6,4,3,2",
+    "scheme": "asym",
+    "granularity": "tensor,channel,group:32,group:64,group:128",
+    "seq_len": 1024,
+    "max_chunks": null,
+    "batch_size": 4,
+    "fp16": true,
+    "device": "cuda",
+    "out_dir": "results",
+    "seed": 0,
+    "revision": "step143000",
+    "quantize_head": false
+  },
+  "timestamp_utc": "2026-10-25T06:04:42+00:00",
+  "device": "NVIDIA GeForce RTX 5070 (sm_120)",
+  "python": "3.12.10",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "torch": "2.11.0+cu128",
+  "torch_cuda": "12.8",
+  "transformers": "5.20.2",
+  "git_sha": "d2a0e8753a00a6603a5ba8ce10735c2b93eb82eb"
+}
