@@ -425,6 +425,53 @@ precision. The 5 seeds vary only the demonstrations, not the eval examples, so
 the seed standard deviation understates the uncertainty: it leaves out sampling
 error from the 500-example subset. No prompt was truncated.
 
+## Figures
+
+<table>
+  <tr>
+    <th></th>
+    <th>LM head fp32 (default)</th>
+    <th>LM head quantized</th>
+  </tr>
+  <tr>
+    <td>Perplexity</td>
+    <td><img src="results/ppl.png" width="100%" alt="ΔNLL and perplexity vs weight bits, LM head fp32"></td>
+    <td><img src="results/head_quantized/ppl.png" width="100%" alt="ΔNLL and perplexity vs weight bits, LM head quantized"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td colspan="2"><em>One column per model, ΔNLL vs bits (top) over perplexity vs bits (bottom), both on log axes, one coloured line per granularity; the dashed grey line is a 4^(−b) guide, not a fit to the data.</em></td>
+  </tr>
+  <tr>
+    <td>ICL gain</td>
+    <td><img src="results/icl_gain.png" width="100%" alt="16-shot gain per precision, LM head fp32"></td>
+    <td><img src="results/head_quantized/icl_gain.png" width="100%" alt="16-shot gain per precision, LM head quantized"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td colspan="2"><em>pythia-70m and pythia-160m (faded) are at or near chance at FP32, so their gain is not interpretable; error bars are std over demo seeds only.</em></td>
+  </tr>
+</table>
+
+![Weight reconstruction error vs bit-width, LM head fp32](results/error.png)
+
+*Pooled relative error `sqrt(sum ||W - W_hat||^2 / sum ||W||^2)` vs bits, one
+line per granularity (LM head not quantized).*
+
+<details>
+<summary>More plots</summary>
+
+Accuracy vs number of shots, one panel per model, one line per precision
+(dotted = chance), LM head fp32 (default):
+
+<img src="results/icl.png" width="100%" alt="Few-shot accuracy vs shots, LM head fp32">
+
+LM head quantized:
+
+<img src="results/head_quantized/icl.png" width="100%" alt="Few-shot accuracy vs shots, LM head quantized">
+
+</details>
+
 ## Limitations
 
 - **Fake quantization only.** Weights are quantized then dequantized, which
