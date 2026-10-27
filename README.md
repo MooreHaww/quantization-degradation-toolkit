@@ -39,7 +39,7 @@ versions, device, git SHA) to `results/`.
 ## Setup (Windows 11, PowerShell)
 
 ```powershell
-py -3.14 -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 
@@ -53,8 +53,10 @@ pip install -e ".[dev]"
 python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 ```
 
-If no cu128 wheel exists for your Python version, try the `cu129` or `cu130`
-index, or create the venv with Python 3.12. On Linux/macOS, activate with
+The results in this repo were produced with Python 3.12.10 and torch
+2.11.0+cu128 (CUDA 12.8), as recorded in `results/ppl_meta.json`. Newer Python
+versions such as 3.14 may not have a cu128 wheel; if pip finds none, try the
+`cu129` or `cu130` index, or stay on Python 3.12. On Linux/macOS, activate with
 `source .venv/bin/activate`; everything else is the same.
 
 The first run downloads the models and datasets to the Hugging Face cache
@@ -303,7 +305,10 @@ this repo does not explain that difference.
 - Repeating a run on the same machine and software stack gives byte-identical
   CSVs; this is tested. Results can differ in the last digits between CPU and
   GPU, or across library versions.
-- `*_meta.json` records the exact versions and device used.
+- `*_meta.json` records the exact versions and device used. The code and the
+  results were committed together, after the runs, so the `git_sha` in the
+  meta files may point to the parent commit rather than the one that contains
+  the code that produced them.
 
 ## Results
 
@@ -331,6 +336,13 @@ quantized):
 FP32 perplexity: 51.39 (70m), 30.28 (160m), 18.03 (410m). FP16 is "FP16 body,
 FP32 logits" and never quantizes the head. Perplexity for every granularity is
 in the same CSVs.
+
+![ΔNLL and perplexity vs weight bits, head fp32](results/ppl.png)
+
+*One column per model: ΔNLL vs bits (top) over perplexity vs bits (bottom), both
+on log axes, one coloured line per granularity. Reference lines: dotted = FP16
+(FP32 logits), solid black = FP32 (bottom panels only); the dashed grey line is a
+4^(−b) guide, not a fit to the data.*
 
 **Observation across these three models.** Quantizing `lm_head` changes
 perplexity a lot on pythia-70m, less on pythia-160m and very little on
@@ -400,6 +412,12 @@ full-colour line. (A model counts as at chance when its FP32 16-shot accuracy is
 within two binomial standard errors of 0.5.) The error bars show the standard
 deviation over the 5 demo seeds only; they leave out sampling error from the
 eval subset. The same applies to `results/head_quantized/icl_gain.png`.
+
+![16-shot gain per precision, head fp32](results/icl_gain.png)
+
+*16-shot gain per precision; pythia-70m and pythia-160m (faded) are at or near
+chance at FP32, so their gain is not interpretable; error bars are std over demo
+seeds only.*
 
 **How much to trust the ICL numbers.** The eval subset is 500 examples (255
 positive, 245 negative, so about 51% one label), the same for every seed and
