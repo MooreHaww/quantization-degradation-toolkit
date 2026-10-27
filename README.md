@@ -36,6 +36,54 @@ The three experiments:
 Each experiment writes a CSV, a PNG and a `*_meta.json` (arguments, library
 versions, device, git SHA) to `results/`.
 
+## Results at a glance
+
+<table>
+  <tr>
+    <th>LM head fp32 (default)</th>
+    <th>LM head quantized</th>
+  </tr>
+  <tr>
+    <td><img src="results/icl_gain.png" width="100%" alt="16-shot gain per precision, LM head fp32"></td>
+    <td><img src="results/head_quantized/icl_gain.png" width="100%" alt="16-shot gain per precision, LM head quantized"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><em>pythia-70m and pythia-160m (faded) are at or near chance at FP32, so their gain is not interpretable; error bars are std over demo seeds only.</em></td>
+  </tr>
+</table>
+
+**LM head fp32 (default)**
+
+<img src="results/ppl.png" width="100%" alt="ΔNLL and perplexity vs weight bits, LM head fp32">
+
+**LM head quantized**
+
+<img src="results/head_quantized/ppl.png" width="100%" alt="ΔNLL and perplexity vs weight bits, LM head quantized">
+
+*One column per model: ΔNLL vs bits (top) over perplexity vs bits (bottom), both
+on log axes, one coloured line per granularity. Reference lines: dotted = FP16
+(FP32 logits), solid black = FP32 (bottom panels only); the dashed grey line is a
+4^(−b) guide, not a fit to the data.*
+
+![Weight reconstruction error vs bit-width, LM head fp32](results/error.png)
+
+*Pooled relative error `sqrt(sum ||W - W_hat||^2 / sum ||W||^2)` vs bits, one
+line per granularity (LM head not quantized).*
+
+<details>
+<summary>More plots</summary>
+
+Accuracy vs number of shots, one panel per model, one line per precision
+(dotted = chance), LM head fp32 (default):
+
+<img src="results/icl.png" width="100%" alt="Few-shot accuracy vs shots, LM head fp32">
+
+LM head quantized:
+
+<img src="results/head_quantized/icl.png" width="100%" alt="Few-shot accuracy vs shots, LM head quantized">
+
+</details>
+
 ## Setup (Windows 11, PowerShell)
 
 ```powershell
@@ -170,8 +218,11 @@ sweeps every combination of {sym, asym} × {tensor, channel, g32, g64, g128} at
 final training checkpoint (the same weights as `main`), pinned for reproducibility.
 
 **Exp 1 (reconstruction error):**
-- Uses the quantized `nn.Linear` weights of pythia-70m and pythia-160m: all of
-  them except the LM head by default, the head too with `--quantize-head`.
+- Uses the quantized `nn.Linear` weights: all of them except the LM head by
+  default, the head too with `--quantize-head`. The CLI default is pythia-70m
+  and pythia-160m; the results in `results/` (`error.csv`, `error.png`) cover
+  all three models, pythia-70m, 160m and 410m (24, 48 and 96 layers; 25, 49 and
+  97 with the head).
 - Per layer: MSE and relative error `||W - W_hat||_F / ||W||_F`.
 - The plot shows the pooled relative error `sqrt(sum ||W - W_hat||^2 / sum ||W||^2)`.
 - Outputs `error.csv` (per layer), `error_summary.csv` (also has the mean of per-layer errors) and `error.png`.
@@ -319,6 +370,8 @@ head default was chosen after seeing the data (see [The LM head](#the-lm-head)).
 Figures: `results/ppl.png`, `results/icl.png`, `results/icl_gain.png`, and the
 same files under `results/head_quantized/`.
 
+Figures are in [Results at a glance](#results-at-a-glance), near the top of this README.
+
 ### Perplexity: ΔNLL vs FP32 (nats per token), g128
 
 From `results/ppl.csv` (head fp32) and `results/head_quantized/ppl.csv` (head
@@ -336,13 +389,6 @@ quantized):
 FP32 perplexity: 51.39 (70m), 30.28 (160m), 18.03 (410m). FP16 is "FP16 body,
 FP32 logits" and never quantizes the head. Perplexity for every granularity is
 in the same CSVs.
-
-![ΔNLL and perplexity vs weight bits, head fp32](results/ppl.png)
-
-*One column per model: ΔNLL vs bits (top) over perplexity vs bits (bottom), both
-on log axes, one coloured line per granularity. Reference lines: dotted = FP16
-(FP32 logits), solid black = FP32 (bottom panels only); the dashed grey line is a
-4^(−b) guide, not a fit to the data.*
 
 **Observation across these three models.** Quantizing `lm_head` changes
 perplexity a lot on pythia-70m, less on pythia-160m and very little on
@@ -413,64 +459,11 @@ within two binomial standard errors of 0.5.) The error bars show the standard
 deviation over the 5 demo seeds only; they leave out sampling error from the
 eval subset. The same applies to `results/head_quantized/icl_gain.png`.
 
-![16-shot gain per precision, head fp32](results/icl_gain.png)
-
-*16-shot gain per precision; pythia-70m and pythia-160m (faded) are at or near
-chance at FP32, so their gain is not interpretable; error bars are std over demo
-seeds only.*
-
 **How much to trust the ICL numbers.** The eval subset is 500 examples (255
 positive, 245 negative, so about 51% one label), the same for every seed and
 precision. The 5 seeds vary only the demonstrations, not the eval examples, so
 the seed standard deviation understates the uncertainty: it leaves out sampling
 error from the 500-example subset. No prompt was truncated.
-
-## Figures
-
-<table>
-  <tr>
-    <th></th>
-    <th>LM head fp32 (default)</th>
-    <th>LM head quantized</th>
-  </tr>
-  <tr>
-    <td>Perplexity</td>
-    <td><img src="results/ppl.png" width="100%" alt="ΔNLL and perplexity vs weight bits, LM head fp32"></td>
-    <td><img src="results/head_quantized/ppl.png" width="100%" alt="ΔNLL and perplexity vs weight bits, LM head quantized"></td>
-  </tr>
-  <tr>
-    <td></td>
-    <td colspan="2"><em>One column per model, ΔNLL vs bits (top) over perplexity vs bits (bottom), both on log axes, one coloured line per granularity; the dashed grey line is a 4^(−b) guide, not a fit to the data.</em></td>
-  </tr>
-  <tr>
-    <td>ICL gain</td>
-    <td><img src="results/icl_gain.png" width="100%" alt="16-shot gain per precision, LM head fp32"></td>
-    <td><img src="results/head_quantized/icl_gain.png" width="100%" alt="16-shot gain per precision, LM head quantized"></td>
-  </tr>
-  <tr>
-    <td></td>
-    <td colspan="2"><em>pythia-70m and pythia-160m (faded) are at or near chance at FP32, so their gain is not interpretable; error bars are std over demo seeds only.</em></td>
-  </tr>
-</table>
-
-![Weight reconstruction error vs bit-width, LM head fp32](results/error.png)
-
-*Pooled relative error `sqrt(sum ||W - W_hat||^2 / sum ||W||^2)` vs bits, one
-line per granularity (LM head not quantized).*
-
-<details>
-<summary>More plots</summary>
-
-Accuracy vs number of shots, one panel per model, one line per precision
-(dotted = chance), LM head fp32 (default):
-
-<img src="results/icl.png" width="100%" alt="Few-shot accuracy vs shots, LM head fp32">
-
-LM head quantized:
-
-<img src="results/head_quantized/icl.png" width="100%" alt="Few-shot accuracy vs shots, LM head quantized">
-
-</details>
 
 ## Limitations
 
